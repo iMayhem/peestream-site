@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/((?!api/|assets/|embed/|splash_screens/|flags/|lightbar-images/|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
