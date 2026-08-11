@@ -29,59 +29,22 @@
     });
   </script>
   <script src="https://openpanel.dev/op1.js" async defer></script>
-
-  <!-- Teerth analytics SDK -->
+  
+  <!-- Popup Ad (isolated iframe so its overlays/capture events never cover the player controls) -->
+  <iframe id="ad-sandbox" aria-hidden="true" tabindex="-1" style="position:absolute;width:0;height:0;border:0;left:-9999px;top:-9999px;visibility:hidden" sandbox="allow-scripts allow-popups allow-same-origin allow-popups-to-escape-sandbox"></iframe>
   <script data-cfasync="false">
     (function () {
-      var getSite = function () {
-        try { var r = document.referrer; if (r) return new URL(r).hostname; } catch (e) {}
-        return location.hostname;
-      };
-      var s = document.createElement('script');
-      s.src = 'https://proxy.moovie.fun/teerth/t.js';
-      s.setAttribute('data-site', getSite());
-      s.onload = function () {
-        var t = window.teerth;
-        if (!t) return;
-        t.pageview({ path: '/embed' + location.search, title: document.title });
-      };
-      document.head.appendChild(s);
-      window.tee = function (name, data) {
-        try { if (window.teerth) window.teerth.track(name, data || {}); } catch (e) {}
-      };
-    })();
-  </script>
-  
-  <!-- ProfitOn Ad Tag (Frequency Capped: Max 2 impressions per 5 hours) -->
-  <script>
-    (function() {
       try {
-        const KEY = 'peestream_ad_impressions';
-        const WINDOW_MS = 5 * 60 * 60 * 1000; // 5 hours
-        const MAX_IMPRESSIONS = 2;
-        const now = Date.now();
-
-        let impressions = JSON.parse(localStorage.getItem(KEY) || '[]');
-        if (!Array.isArray(impressions)) impressions = [];
-
-        // Keep impressions from last 5 hours
-        impressions = impressions.filter(ts => typeof ts === 'number' && (now - ts) < WINDOW_MS);
-
-        if (impressions.length < MAX_IMPRESSIONS) {
-          impressions.push(now);
-          localStorage.setItem(KEY, JSON.stringify(impressions));
-
-          const adScript = document.createElement('script');
-          adScript.setAttribute('data-cfasync', 'false');
-          adScript.async = true;
-          adScript.type = 'text/javascript';
-          adScript.src = '//ae.muggurssalited.com/rxJT26IDtii/vmroB';
-          document.head.appendChild(adScript);
-        }
+        var f = document.getElementById('ad-sandbox');
+        var doc = f.contentDocument || f.contentWindow.document;
+        var s = doc.createElement('script');
+        s.setAttribute('data-cfasync', 'false');
+        s.src = '//dc9xwpjprguup.cloudfront.net/?pwxcd=1454678';
+        doc.head.appendChild(s);
       } catch (e) {}
     })();
   </script>
-  
+
   <style>
     :root {
       --bg-color: #07070a;
@@ -607,6 +570,12 @@
       opacity: 0;
       transform: translateY(10px);
       pointer-events: none;
+    }
+
+    .video-container.hide-controls .video-controls:has(.control-menu.show) {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
     }
 
     .video-container.hide-controls {
@@ -1420,6 +1389,29 @@
     .retry-btn:hover {
       background: var(--accent-hover);
     }
+
+    #debug-console {
+      position: fixed;
+      z-index: 50;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 8px;
+      background: rgba(8, 10, 16, .92);
+      color: #d8dee9;
+      font: 11px/1.45 monospace;
+      text-align: left;
+      pointer-events: none;
+      white-space: pre-wrap;
+    }
+    .debug-log-line { margin: 2px 0; }
+    .debug-log-line.log-error { color: #ff7676; }
+    .debug-log-line.log-warn { color: #ffd166; }
+    .debug-log-line.log-success { color: #72e6a8; }
   /* ============================================================
    REVAMP 2026 — design system upgrade (pure CSS, no JS touched)
    ============================================================ */
@@ -1861,7 +1853,6 @@ body::before {
 /* revamp-2026-marker */
 
   </style>
-    <script data-cfasync="false" async type="text/javascript" src="//wh.tangierlocoman.com/riX9pGIVeBJHQs/147920"></script>
 </head>
 <body>
 
@@ -1977,7 +1968,7 @@ body::before {
           
           <div class="doc-card">
             <div class="doc-card-title">TV Shows API</div>
-            <div class="doc-code-block" id="code-tv-tpl">https://peestream.in/embed/?tmdbId={tmdbId}&type=show&season={season}&episode={episode}</div>
+            <div class="doc-code-block" id="code-tv-tpl">https://peestream.in/embed/?tmdbId={tmdbId}&type=tv&season={season}&episode={episode}</div>
             <button class="doc-copy-btn" onclick="copyText('code-tv-tpl')">
               <i class="fa-regular fa-copy"></i> copy url template
             </button>
@@ -1994,7 +1985,7 @@ body::before {
       
       <!-- Custom Video Container -->
       <div id="video-container" class="video-container hide-controls">
-        <video id="main-video" playsinline crossorigin="anonymous"></video>
+        <video id="main-video" playsinline></video>
         
         <!-- Big Play Button Overlay -->
         <div id="big-play-btn" class="big-play-btn">
@@ -2141,6 +2132,8 @@ body::before {
           <button onclick="window.location.reload()" class="retry-btn">Retry</button>
         </div>
       </div>
+
+      <div id="debug-console" style="display: none;"></div>
       
       <!-- Embed Code Drawer -->
       <div id="embed-drawer" class="embed-drawer">
@@ -2181,10 +2174,12 @@ body::before {
     // URL Params parsing
     const urlParams = new URLSearchParams(window.location.search);
     const tmdbId = urlParams.get('tmdbId');
-    const type = urlParams.get('type') || 'movie';
+    const rawType = urlParams.get('type') || 'movie';
+    const type = ['show', 'series'].includes(rawType.toLowerCase()) ? 'tv' : rawType;
     const season = urlParams.get('season');
     const episode = urlParams.get('episode');
     const title = urlParams.get('title') || 'Media Stream';
+    const debugEnabled = ['1', 'true', 'yes'].includes((urlParams.get('debug') || '').toLowerCase());
     
     // Page Elements
     const landingView = document.getElementById('landing-view');
@@ -2192,7 +2187,7 @@ body::before {
     
     // Load Dynamic Templates Domain
     document.getElementById('code-movie-tpl').innerText = `${window.location.origin}${window.location.pathname}?tmdbId={tmdbId}&type=movie`;
-    document.getElementById('code-tv-tpl').innerText = `${window.location.origin}${window.location.pathname}?tmdbId={tmdbId}&type=show&season={season}&episode={episode}`;
+    document.getElementById('code-tv-tpl').innerText = `${window.location.origin}${window.location.pathname}?tmdbId={tmdbId}&type=tv&season={season}&episode={episode}`;
 
     // High-Performance Parallel Subtitle Loader & Cache
     const subtitleCache = new Map();
@@ -2202,7 +2197,8 @@ body::before {
     if (tmdbId) {
       landingView.style.display = 'none';
       playerView.style.display = 'block';
-      loadActivatedServers();
+      // loadActivatedServers depends on helpers declared later in this script.
+      window.addEventListener('DOMContentLoaded', () => loadActivatedServers(), { once: true });
     } else {
       landingView.style.display = 'flex';
       playerView.style.display = 'none';
@@ -2301,7 +2297,18 @@ body::before {
     // ----------------------------------
     const loadingOverlay = document.getElementById('loading-overlay');
     const errorOverlay = document.getElementById('error-overlay');
+    const errorDesc = document.getElementById('error-desc');
     const loaderStatus = document.getElementById('loader-status');
+const hideLoadingOverlay = () => {
+      loadingOverlay.classList.add('hidden');
+      loadingOverlay.style.display = 'none';
+    };
+    // Failure banner removed — never show the "All stream links failed" notice.
+    const showStreamFailure = () => {
+      hideLoadingOverlay();
+      hideErrorOverlay();
+      if (loaderStatus) loaderStatus.innerText = 'Poseidon could not start this stream. Please refresh.';
+    };
     
     const embedTrigger = document.getElementById('embed-trigger');
     const embedDrawer = document.getElementById('embed-drawer');
@@ -2406,12 +2413,42 @@ body::before {
     let targetedScrapes = new Map(); // providerId -> EventSource (per-server click loads)
     let autoScrapes = new Set();     // providerIds loaded automatically (auto-failover chain)
 
+    window.embedLogs = window.embedLogs || [];
+    const clientLogThrottle = new Map();
+
     function clLog(type, message) {
       try {
+        let sid = sessionStorage.getItem('peestream_sid');
+        if (!sid) {
+          sid = 'sid_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+          sessionStorage.setItem('peestream_sid', sid);
+        }
+        const timeStr = new Date().toLocaleTimeString();
+        const throttleKey = `${type}|${message}`;
+        const now = Date.now();
+        const previous = clientLogThrottle.get(throttleKey) || 0;
+        if (type === 'error' && message.startsWith('HLS error:') && now - previous < 2500) return;
+        clientLogThrottle.set(throttleKey, now);
+        const entry = { time: timeStr, type, message, tmdbId };
+        window.embedLogs.push(entry);
+        console.log(`[EMBED ${type.toUpperCase()}] ${timeStr} - ${message}`);
+
+        const debugConsole = document.getElementById('debug-console');
+        if (debugConsole) {
+          debugConsole.style.display = debugEnabled ? 'block' : 'none';
+          if (debugEnabled) {
+            const logLine = document.createElement('div');
+            logLine.className = `debug-log-line log-${type}`;
+            logLine.innerText = `[${timeStr}] [${type.toUpperCase()}] ${message}`;
+            debugConsole.appendChild(logLine);
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+          }
+        }
+
         fetch('https://providers.peestream.in/api/scrape/client-log', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type, message, tmdbId })
+          body: JSON.stringify({ type, message, tmdbId, sid })
         }).catch(() => {});
       } catch (e) {}
     }
@@ -2543,8 +2580,7 @@ body::before {
           <span class="server-option-row">
             <span>${name.toUpperCase()}</span>
             <span class="server-status ${meta.cls}">${meta.label}${isActive ? ' ✓' : ''}</span>
-          </span>
-          <span class="server-sub">${entry.id}${resolved ? ' · loaded' : ''}</span>`;
+          </span>`;
         btn.title = entry.error || `Load ${name} server`;
         btn.onclick = () => handleServerClick(entry.id);
         playerServersList.appendChild(btn);
@@ -2560,8 +2596,8 @@ body::before {
       updateServerMenuUI();
       const next = enabledServers.find(s => s.id !== sourceId && !failedStreamIds.has(s.id) && !targetedScrapes.has(s.id));
       if (next) {
-        clLog('warn', `server ${getFriendlyServerName(sourceId)} unavailable, auto-trying next server ${getFriendlyServerName(next.id)}`);
-        loaderStatus.innerText = `No streams found on ${getFriendlyServerName(sourceId)}. Trying ${getFriendlyServerName(next.id)}...`;
+        clLog('warn', `server ${sourceId} unavailable, auto-trying next server ${next.id}`);
+        loaderStatus.innerText = 'Trying another stream...';
         loadingOverlay.classList.remove('hidden');
         loadingOverlay.style.display = 'flex';
         autoScrapes.add(next.id);
@@ -2576,20 +2612,29 @@ body::before {
 
     function handleServerClick(sourceId, { auto = false } = {}) {
       if (sourceId === activeServerId) return;
-      if (!auto) autoScrapes.clear();
+      if (!auto) {
+        for (const aid of autoScrapes) {
+          const ses = targetedScrapes.get(aid);
+          if (ses) {
+            ses.close();
+            targetedScrapes.delete(aid);
+          }
+        }
+        autoScrapes.clear();
+      }
       const resolved = resolvedStreams.find(s => s.id === sourceId);
       if (resolved) {
         switchServer(sourceId);
         return;
       }
       if (targetedScrapes.has(sourceId)) return; // already loading this server
-      clLog('info', `${auto ? 'auto' : 'user clicked'} server ${getFriendlyServerName(sourceId)} (${sourceId}), scraping exact server`);
+      clLog('info', `${auto ? 'auto' : 'user clicked'} server ${sourceId}`);
       setServerStatus(sourceId, 'searching');
       renderOverlayServers();
       updateServerMenuUI();
       loadingOverlay.classList.remove('hidden');
       loadingOverlay.style.display = 'flex';
-      loaderStatus.innerText = `Searching ${getFriendlyServerName(sourceId)}...`;
+      loaderStatus.innerText = 'Searching for stream...';
 
       const es = new EventSource(`https://providers.peestream.in/scrape/source?id=${sourceId}&tmdbId=${tmdbId}&type=${type}${season ? `&season=${season}` : ''}${episode ? `&episode=${episode}` : ''}&fallback=false`);
       targetedScrapes.set(sourceId, es);
@@ -2597,22 +2642,38 @@ body::before {
 
       es.addEventListener('completed', (e) => {
         const data = JSON.parse(e.data);
-        const streamObj = Array.isArray(data.stream) ? data.stream[0] : data.stream;
-        if (!streamObj) return;
-        const existing = resolvedStreams.find(s => s.id === sourceId);
-        if (existing) {
-          existing.stream = streamObj;
-        } else {
-          resolvedStreams.push({ id: sourceId, name: getFriendlyServerName(sourceId), stream: streamObj });
-        }
-        failedStreamIds.delete(sourceId);
+        const streamsArr = Array.isArray(data.stream) ? data.stream : (data.stream ? [data.stream] : []);
+        if (streamsArr.length === 0) return;
+
+        const primaryName = getFriendlyServerName(sourceId);
+        streamsArr.forEach((st, idx) => {
+          const streamId = streamsArr.length > 1 ? `${sourceId}_${idx + 1}` : sourceId;
+          const streamName = streamsArr.length > 1 ? `${primaryName} Link ${idx + 1}` : primaryName;
+          
+          const existingIdx = resolvedStreams.findIndex(s => s.id === streamId);
+          if (existingIdx !== -1) {
+            resolvedStreams[existingIdx].stream = st;
+          } else {
+            resolvedStreams.push({ id: streamId, name: streamName, stream: st });
+          }
+          failedStreamIds.delete(streamId);
+        });
+
+        const firstStreamId = streamsArr.length > 1 ? `${sourceId}_1` : sourceId;
+        const firstStreamObj = streamsArr[0];
+
         setServerStatus(sourceId, 'success');
-        activeServerId = sourceId;
-        loadingOverlay.classList.add('hidden');
-        loadingOverlay.style.display = 'none';
-        clLog('success', `server ${sourceId} resolved, loading stream`);
+        activeServerId = firstStreamId;
+        loaderStatus.innerText = 'Preparing video...';
+        loadingOverlay.classList.remove('hidden');
+        loadingOverlay.style.display = 'flex';
+        clLog('success', `server ${sourceId} resolved ${streamsArr.length} HLS link(s), trying 1st link`);
         if (!subtitlesFetched) fetchSubtitles();
-        initPlayer(streamObj);
+        if (hlsInstance) {
+          try { hlsInstance.destroy(); } catch(err) {}
+          hlsInstance = null;
+        }
+        initPlayer(firstStreamObj);
         renderOverlayServers();
         updateServerMenuUI();
       });
@@ -2627,6 +2688,9 @@ body::before {
           updateServerMenuUI();
         } else if (data.status === 'pending') {
           setServerStatus(sid, 'searching');
+          if (typeof data.percentage === 'number' && data.percentage > 0) {
+            loaderStatus.innerText = `Searching for stream... ${data.percentage}%`;
+          }
         }
       });
 
@@ -2644,7 +2708,7 @@ body::before {
           renderOverlayServers();
           updateServerMenuUI();
           if (activeServerId) {
-            loaderStatus.innerText = `No streams found on ${getFriendlyServerName(sourceId)}.`;
+            loaderStatus.innerText = 'No stream found. Trying next...';
             loadingOverlay.classList.remove('hidden');
             loadingOverlay.style.display = 'flex';
             setTimeout(() => {
@@ -2653,7 +2717,7 @@ body::before {
             }, 2500);
             clLog('warn', `server ${sourceId} has no streams, continuing playback`);
           } else {
-            loaderStatus.innerText = `No streams found on ${getFriendlyServerName(sourceId)}.`;
+            loaderStatus.innerText = 'No stream found. Trying next...';
             loadingOverlay.classList.remove('hidden');
             loadingOverlay.style.display = 'flex';
           }
@@ -2675,11 +2739,11 @@ body::before {
             return;
           }
           if (!activeServerId) {
-            loaderStatus.innerText = `Connection to ${getFriendlyServerName(sourceId)} server lost. Click a server to retry.`;
+            loaderStatus.innerText = 'Connection lost. Please refresh.';
             loadingOverlay.classList.remove('hidden');
             loadingOverlay.style.display = 'flex';
           } else {
-            loaderStatus.innerText = `Connection to ${getFriendlyServerName(sourceId)} server lost.`;
+            loaderStatus.innerText = 'Connection lost, retrying...';
             loadingOverlay.classList.remove('hidden');
             loadingOverlay.style.display = 'flex';
             setTimeout(() => {
@@ -2691,24 +2755,24 @@ body::before {
       };
     }
 
-    function switchServer(sourceId) {
+    function switchServer(sourceId, { forcePlay = null } = {}) {
       const item = resolvedStreams.find(s => s.id === sourceId);
       if (!item) return;
       
       activeServerId = sourceId;
-      tee('play', { tmdbId: tmdbId || '', type: type || 'movie', season: season || '', episode: episode || '', sourceId: sourceId });
       
       if (hlsInstance) {
-        hlsInstance.destroy();
+        try { hlsInstance.destroy(); } catch(e) {}
         hlsInstance = null;
       }
       
       const currentTime = video.currentTime;
-      const isPlaying = !video.paused;
+      // If forcePlay not specified, keep current play state; but on failover always pass true
+      const shouldPlay = forcePlay !== null ? forcePlay : !video.paused;
       
       subtitleOverlay.style.display = 'none';
       
-      initPlayer(item.stream, currentTime, isPlaying);
+      initPlayer(item.stream, currentTime, shouldPlay);
       updateServerMenuUI();
     }
 
@@ -2720,11 +2784,11 @@ body::before {
         const candidate = resolvedStreams[i];
         if (failedStreamIds.has(candidate.id)) continue;
         failedStreamIds.add(candidate.id);
-        clLog('info', `switching from ${getFriendlyServerName(activeServerId)} to ${getFriendlyServerName(candidate.id)}`);
-        loaderStatus.innerText = `Stream failed on ${getFriendlyServerName(activeServerId)}, switching to ${getFriendlyServerName(candidate.id)}...`;
+        clLog('info', `switching from ${activeServerId} to ${candidate.id}`);
+        loaderStatus.innerText = 'Switching to another stream...';
         loadingOverlay.classList.remove('hidden');
         loadingOverlay.style.display = 'flex';
-        switchServer(candidate.id);
+        switchServer(candidate.id, { forcePlay: true }); // always autoplay on failover
         return true;
       }
       return false;
@@ -2742,14 +2806,19 @@ body::before {
         qualities = stream.qualities || {};
         const qKeys = Object.keys(qualities);
         
-        // Find best quality
+        // Find best quality (numeric rank, handles 4K/2160p and suffixed keys like "1080p HUBCDN")
+        const qRank = (q) => {
+          const s = String(q || '').toLowerCase();
+          if (s.includes('4k') || s.includes('2160') || s.includes('uhd')) return 2160;
+          const m = s.match(/(\d{3,4})/);
+          const n = m ? parseInt(m[1]) : NaN;
+          return isNaN(n) ? -1 : n;
+        };
         let bestQual = qKeys[0];
-        const priority = ['4k', '2160', '1080', '1080p', '1080P', '720', '720p', '720P', '480', '480p', '360', '360p', 'sd'];
-        for (const q of priority) {
-          if (qKeys.includes(q)) {
-            bestQual = q;
-            break;
-          }
+        let bestRank = -1;
+        for (const k of qKeys) {
+          const r = qRank(k);
+          if (r > bestRank) { bestRank = r; bestQual = k; }
         }
         playerUrl = qualities[bestQual]?.url || '';
         
@@ -2789,11 +2858,21 @@ body::before {
         if (Hls.isSupported()) {
           const hlsConfig = {
             enableWorker: true,
-            maxBufferLength: 45,        // buffer up to 45s ahead
-            maxMaxBufferLength: 90,     // cap max buffer length at 90s
-            maxBufferSize: 60 * 1024 * 1024, // 60MB max buffer size
+            // Keep startup light; grow the buffer after playback begins.
+            maxBufferLength: 18,
+            maxMaxBufferLength: 45,
+            maxBufferSize: 32 * 1024 * 1024,
             maxStarvationDelay: 2,
-            progressive: true
+            progressive: true,
+            startFragPrefetch: true,
+            capLevelToPlayerSize: false,
+            startLevel: -1,
+            manifestLoadingMaxRetry: 1,
+            manifestLoadingRetryDelay: 400,
+            levelLoadingMaxRetry: 1,
+            levelLoadingRetryDelay: 400,
+            fragLoadingMaxRetry: 1,
+            fragLoadingRetryDelay: 400
           };
           if (stream.headers && Object.keys(stream.headers).length > 0) {
             hlsConfig.xhrSetup = function (xhr, targetUrl) {
@@ -2813,47 +2892,79 @@ body::before {
             };
           }
           
-          hlsInstance = new Hls(hlsConfig);
-          hlsInstance.loadSource(playerUrl);
-          hlsInstance.attachMedia(video);
+          const thisHls = new Hls(hlsConfig);
+          hlsInstance = thisHls;
+          let fragParseErrors = 0;
+          let fragErrorWindowStarted = Date.now();
+          let playbackWatchdog = null;
 
-          hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-            clLog('error', `HLS error: ${data.type} ${data.details} fatal=${data.fatal}`);
-            if (!data || !data.fatal) return;
-            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              hlsInstance.startLoad();
-            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              hlsInstance.recoverMediaError();
+          const failThisHls = (reason) => {
+            clLog('warn', `HLS stream load failure (${reason}), trying next HLS link candidate...`);
+            failedStreamIds.add(activeServerId);
+            try { thisHls.destroy(); } catch(err) {}
+            if (hlsInstance === thisHls) hlsInstance = null;
+            if (!tryNextServer()) showStreamFailure();
+          };
+
+          thisHls.loadSource(playerUrl);
+          thisHls.attachMedia(video);
+
+          thisHls.on(Hls.Events.ERROR, (event, data) => {
+            if (thisHls !== hlsInstance) return; // stale handler from a destroyed instance, ignore
+            if (!data) return;
+            // fragParsingError is a noisy recoverable diagnostic on Poseidon.
+            // Keep recovery/fallback logic, but do not flood realtime logs with it.
+            if (data.fatal || data.details !== 'fragParsingError') {
+              clLog('error', `HLS error: ${data.type} ${data.details} fatal=${data.fatal}`);
             }
-            setTimeout(() => {
-              if (video.readyState < 2) {
-                clLog('warn', 'playback stalled after HLS error, trying next server');
-                if (!tryNextServer()) {
-                  loadingOverlay.classList.add('hidden');
-                  errorOverlay.style.display = 'flex';
-                  document.getElementById('error-desc').innerText = 'All servers failed to play this stream. Please try again later.';
-                }
+
+            const isManifestError = data.details === 'manifestLoadError' || data.details === 'manifestParsingError' || data.details === 'levelLoadError' || data.details === 'fragLoadError';
+            if (data.fatal || isManifestError) {
+              failThisHls(data.details);
+              return;
+            }
+
+            // Some Poseidon manifests repeatedly return malformed fragments as
+            // recoverable media errors. Do not leave the loader spinning forever.
+            if (data.details === 'fragParsingError') {
+              if (Date.now() - fragErrorWindowStarted > 10000) {
+                fragParseErrors = 0;
+                fragErrorWindowStarted = Date.now();
               }
-            }, 6000);
+              fragParseErrors += 1;
+              if (fragParseErrors >= 3) {
+                failThisHls('repeated fragParsingError');
+                return;
+              }
+            }
+
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              thisHls.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              thisHls.recoverMediaError();
+            }
           });
           
           // Setup HLS Quality Menu dynamically
-          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-            const levels = hlsInstance.levels;
+          thisHls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (thisHls !== hlsInstance) return; // stale, skip
+            const levels = thisHls.levels;
             clLog('success', `HLS manifest parsed (${levels ? levels.length : 0} qualities)`);
+            // Note: keep the loading overlay visible until ACTUAL playback (playing event).
+            // Hiding here leaves a blank gap while the first segments buffer from the CDN.
             
-            // Set HLS to play highest quality first
+            // Start on the highest rendition available (highest quality first).
+            // Master playlists are reordered by bandwidth desc server-side when
+            // proxied; for direct playlists pick the best level explicitly.
             if (levels && levels.length > 0) {
-              let maxLevelIndex = 0;
-              let maxAttr = 0;
-              levels.forEach((lvl, idx) => {
-                const val = lvl.height || lvl.bitrate || 0;
-                if (val > maxAttr) {
-                  maxAttr = val;
-                  maxLevelIndex = idx;
-                }
+              let bestIdx = 0;
+              let bestScore = -1;
+              levels.forEach((level, index) => {
+                const score = (level.height || 0) * 1000 + (level.bitrate || 0) / 1000;
+                if (score > bestScore) { bestScore = score; bestIdx = index; }
               });
-              hlsInstance.nextLevel = maxLevelIndex;
+              hlsInstance.startLevel = bestIdx;
+              hlsInstance.nextLevel = bestIdx;
             }
 
             if (levels && levels.length > 1) {
@@ -2866,7 +2977,6 @@ body::before {
               autoBtn.innerHTML = 'AUTO <i class="fa-solid fa-check" style="font-size:0.75rem;opacity:0.8"></i>';
               autoBtn.onclick = () => {
                 hlsInstance.currentLevel = -1;
-                  tee('quality_change', { q: 'auto', sourceId: activeServerId });
                 updateActiveHlsQualityBtn(autoBtn);
               };
               qualitiesList.appendChild(autoBtn);
@@ -2879,7 +2989,6 @@ body::before {
                 btn.innerText = label.toUpperCase();
                 btn.onclick = () => {
                   hlsInstance.currentLevel = index;
-                  tee('quality_change', { q: label, sourceId: activeServerId });
                   updateActiveHlsQualityBtn(btn);
                 };
                 qualitiesList.appendChild(btn);
@@ -2894,7 +3003,31 @@ body::before {
             
             const shouldPlay = forcePlay !== null ? forcePlay : autoplayParam;
             if (shouldPlay) {
-              video.play().catch(() => bigPlayBtn.classList.add('show'));
+              video.play().catch((err) => {
+                if (err && err.name === 'NotAllowedError') {
+                  // Browser blocked autoplay — silently try muted (always allowed by browsers)
+                  const wasMuted = video.muted;
+                  video.muted = true;
+                  video.play().then(() => {
+                    // Muted play worked — unmute immediately if user hadn't muted it
+                    if (!wasMuted) {
+                      video.muted = false;
+                    }
+                  }).catch(() => {
+                    // Even muted failed — fall back to play button
+                    video.muted = wasMuted;
+                    bigPlayBtn.classList.add('show');
+                  });
+                } else {
+                  // Actual stream error — try next link
+                  clLog('warn', `video.play() failed (${err && err.name}), trying next stream link`);
+                  failedStreamIds.add(activeServerId);
+                  if (!tryNextServer()) {
+                    bigPlayBtn.classList.add('show');
+                  }
+                }
+              });
+
             } else {
               video.pause();
               bigPlayBtn.classList.add('show');
@@ -2908,18 +3041,25 @@ body::before {
           });
           const shouldPlay = forcePlay !== null ? forcePlay : autoplayParam;
           if (shouldPlay) {
-            video.play().catch(() => bigPlayBtn.classList.add('show'));
+            video.play().catch(() => { hideLoadingOverlay(); bigPlayBtn.classList.add('show'); });
+            playbackWatchdog = setTimeout(() => {
+              if (thisHls !== hlsInstance || !video.paused || video.readyState >= 3) return;
+              failThisHls('playback timeout');
+            }, 15000);
           } else {
             video.pause();
             bigPlayBtn.classList.add('show');
           }
 
+          video.addEventListener('playing', () => {
+            if (playbackWatchdog) clearTimeout(playbackWatchdog);
+          }, { once: true });
+
           const onNativeError = () => {
             setTimeout(() => {
               if (video.readyState < 2) {
                 if (!tryNextServer()) {
-                  loadingOverlay.classList.add('hidden');
-                  errorOverlay.style.display = 'flex';
+                  showStreamFailure();
                   document.getElementById('error-desc').innerText = 'All servers failed to play this stream. Please try again later.';
                 }
               }
@@ -2935,7 +3075,7 @@ body::before {
         });
         const shouldPlay = forcePlay !== null ? forcePlay : autoplayParam;
         if (shouldPlay) {
-          video.play().catch(() => bigPlayBtn.classList.add('show'));
+          video.play().catch(() => { hideLoadingOverlay(); bigPlayBtn.classList.add('show'); });
         } else {
           video.pause();
           bigPlayBtn.classList.add('show');
@@ -2945,8 +3085,7 @@ body::before {
           setTimeout(() => {
             if (video.readyState < 2) {
               if (!tryNextServer()) {
-                loadingOverlay.classList.add('hidden');
-                errorOverlay.style.display = 'flex';
+                showStreamFailure();
                 document.getElementById('error-desc').innerText = 'All servers failed to play this stream. Please try again later.';
               }
             }
@@ -2999,7 +3138,7 @@ body::before {
       });
       
       if (isPlaying) {
-        video.play().catch(() => bigPlayBtn.classList.add('show'));
+        video.play().catch(() => { hideLoadingOverlay(); bigPlayBtn.classList.add('show'); });
       } else {
         video.pause();
         bigPlayBtn.classList.add('show');
@@ -3035,14 +3174,7 @@ body::before {
               subtitlesList.appendChild(btn);
             });
 
-            // Auto-select English or first subtitle & PREFETCH IMMEDIATELY in parallel
-            let targetIndex = activeSubtitles.findIndex(s => s.language === 'en' || s.language === 'eng');
-            if (targetIndex === -1) targetIndex = 0;
-
-            if (targetIndex !== -1 && subtitlesList.children[targetIndex + 1]) {
-              const targetBtn = subtitlesList.children[targetIndex + 1];
-              selectSubtitle(targetIndex, targetBtn);
-            }
+            // Subtitles stay OFF by default; the user picks one from the menu.
           }
         }
       } catch (e) {
@@ -3155,7 +3287,7 @@ body::before {
           }
         }
       }
-      return cues;
+      return cues.sort((a, b) => a.start - b.start);
     }
 
     function parseTimestampMatch(h, m, s, ms) {
@@ -3201,14 +3333,24 @@ body::before {
       bigPlayBtn.addEventListener('click', togglePlay);
       playBtn.addEventListener('click', togglePlay);
 
-      // Video state changes
+      // Video state changes: hide ONLY when actual playback starts.
+      video.addEventListener('playing', () => { hideLoadingOverlay(); hideErrorOverlay(); });
+      video.addEventListener('loadedmetadata', () => {
+        if (!loadingOverlay.classList.contains('hidden')) {
+          loaderStatus.innerText = 'Starting video...';
+        }
+      });
+      video.addEventListener('waiting', () => {
+        if (!loadingOverlay.classList.contains('hidden')) {
+          loaderStatus.innerText = 'Starting video...';
+        }
+      });
+
       video.addEventListener('play', () => {
         bigPlayBtn.classList.remove('show');
         playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
       });
-      video.addEventListener('error', () => { tee('error', { code: video.error ? video.error.code : 'unknown' }); });
       video.addEventListener('pause', () => {
-        tee('pause');
         bigPlayBtn.classList.add('show');
         playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
       });
@@ -3227,8 +3369,21 @@ body::before {
 
         // Render current subtitles cue
         if (subtitleCues.length > 0) {
-          const adjustedTime = curr + subtitleDelay;
-          const activeCue = subtitleCues.find(cue => adjustedTime >= cue.start && adjustedTime <= cue.end);
+          const t = curr + subtitleDelay;
+          // Binary search: rightmost cue whose start <= t. This is the active
+          // line — correctly handles overlapping cues (latest start wins) and
+          // the cue boundary (end is exclusive, so the next line shows instantly).
+          let lo = 0, hi = subtitleCues.length - 1, idx = -1;
+          while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (subtitleCues[mid].start <= t) {
+              idx = mid;
+              lo = mid + 1;
+            } else {
+              hi = mid - 1;
+            }
+          }
+          const activeCue = (idx !== -1 && t < subtitleCues[idx].end) ? subtitleCues[idx] : null;
           if (activeCue) {
             subtitleOverlay.style.display = 'block';
             subtitleOverlay.innerHTML = activeCue.text;
@@ -3245,6 +3400,12 @@ body::before {
       // Video LoadedMetadata
       video.addEventListener('loadedmetadata', () => {
         timeDuration.innerText = formatTime(video.duration);
+      });
+
+      // Hide loading overlay only once video ACTUALLY starts playing.
+      video.addEventListener('playing', () => {
+        loadingOverlay.classList.add('hidden');
+        loadingOverlay.style.display = 'none';
       });
 
       // Buffer/Buffered ranges
@@ -3382,14 +3543,26 @@ body::before {
         serverMenu.classList.remove('show');
       });
 
-      // Fullscreen
+      // Fullscreen (with cross-origin iframe / iOS fallbacks so embeds work even without allowfullscreen)
       const toggleFullscreen = () => {
-        if (!document.fullscreenElement) {
-          videoContainer.requestFullscreen().catch(err => {
-            console.error("Error attempting fullscreen:", err.message);
-          });
+        const tryFullscreen = (target) => {
+          const req = target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen || (video.webkitEnterFullscreen ? () => video.webkitEnterFullscreen() : null);
+          if (!req) {
+            clLog('warn', 'Fullscreen API not available in this browser/embed context');
+            return;
+          }
+          const p = req.call(target);
+          if (p && typeof p.catch === 'function') {
+            p.catch(err => {
+              clLog('warn', 'Fullscreen denied (' + (err ? err.message : 'blocked') + ') - iframe likely missing allowfullscreen');
+              console.error('Fullscreen error:', err);
+            });
+          }
+        };
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
         } else {
-          document.exitFullscreen();
+          tryFullscreen(video.webkitEnterFullscreen ? video : videoContainer);
         }
       };
 
@@ -3436,12 +3609,13 @@ body::before {
 
       // Auto-hide controls bar on mouse inactivity
       let mouseTimer;
+      const anyMenuOpen = () => [serverMenu, subSyncMenu, subtitlesMenu, qualityMenu].some(m => m && m.classList.contains('show'));
       const showControls = () => {
         videoContainer.classList.remove('hide-controls');
         clearTimeout(mouseTimer);
         if (!video.paused) {
           mouseTimer = setTimeout(() => {
-            videoContainer.classList.add('hide-controls');
+            if (!anyMenuOpen()) videoContainer.classList.add('hide-controls');
           }, 3000);
         }
       };
