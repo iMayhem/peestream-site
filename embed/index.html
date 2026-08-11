@@ -678,6 +678,22 @@
       background: rgba(255, 255, 255, 0.05);
     }
 
+    /* Force cast button to be white - override Google Cast SDK auto-styling */
+    #ctrl-cast {
+      color: #fff !important;
+      opacity: 0.8 !important;
+    }
+
+    #ctrl-cast:hover {
+      opacity: 1 !important;
+      color: var(--accent-color) !important;
+    }
+
+    #ctrl-cast.casting {
+      color: #8b5cf6 !important;
+      opacity: 1 !important;
+    }
+
     /* Vertical Volume Controller */
     .volume-container {
       position: relative;
@@ -3631,7 +3647,7 @@ const hideLoadingOverlay = () => {
                 const castSession = cast.framework.CastContext.getInstance().getCurrentSession();
                 castSession.loadMedia(request).then(() => {
                   console.log('Cast session started');
-                  castBtn.style.color = '#8b5cf6'; // Purple when casting
+                  castBtn.classList.add('casting'); // Add casting class for purple color
                 }).catch(err => console.error('Failed to load media:', err));
               }).catch(err => {
                 if (err !== 'cancel') console.error('Failed to request cast session:', err);
