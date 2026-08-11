@@ -2136,11 +2136,6 @@ body::before {
           
         </div>
         
-        <!-- FLOATING CAST BUTTON FOR DEBUGGING -->
-        <button id="floating-cast" style="position: absolute; top: 20px; right: 20px; z-index: 99999; background: red; color: white; padding: 20px; font-size: 24px; border: 5px solid yellow; cursor: pointer; border-radius: 10px;">
-          <i class="fa-solid fa-cast"></i> CAST
-        </button>
-        
         <!-- Custom Subtitle Overlay -->
         <div id="subtitle-overlay" class="subtitle-overlay" style="display: none;"></div>
       </div>
@@ -2398,7 +2393,6 @@ body::before {
     const qualitiesList = document.getElementById('qualities-list');
     const qualityMenuContainer = document.getElementById('quality-menu-container');
     const castBtn = document.getElementById('ctrl-cast');
-    const floatingCastBtn = document.getElementById('floating-cast');
     const fullscreenBtn = document.getElementById('ctrl-fullscreen');
     
     // Force cast button visibility
@@ -2407,7 +2401,6 @@ body::before {
       castBtn.style.color = '#fff';
       castBtn.style.opacity = '1';
       castBtn.style.visibility = 'visible';
-      castBtn.style.background = 'red'; //TEMP
       
       // Debug: Log all computed styles
       const styles = window.getComputedStyle(castBtn);
@@ -3753,12 +3746,8 @@ body::before {
         }
       };
       
-      // Attach handlers to both cast buttons
+      // Attach handler to cast button
       castBtn.addEventListener('click', handleCastClick);
-      if (floatingCastBtn) {
-        floatingCastBtn.addEventListener('click', handleCastClick);
-        console.log('Floating cast button attached!');
-      }
 
       // Keyboard Listeners
       window.addEventListener('keydown', (e) => {
