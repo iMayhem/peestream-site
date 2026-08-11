@@ -680,8 +680,13 @@
 
     /* Force cast button to be white - override Google Cast SDK auto-styling */
     #ctrl-cast {
+      display: flex !important;
+      visibility: visible !important;
       color: #fff !important;
       opacity: 0.8 !important;
+      pointer-events: auto !important;
+      position: relative !important;
+      z-index: 10 !important;
     }
 
     #ctrl-cast:hover {
@@ -2388,6 +2393,17 @@ body::before {
     const castBtn = document.getElementById('ctrl-cast');
     const fullscreenBtn = document.getElementById('ctrl-fullscreen');
     
+    // Force cast button visibility
+    if (castBtn) {
+      castBtn.style.display = 'flex';
+      castBtn.style.color = '#fff';
+      castBtn.style.opacity = '0.8';
+      castBtn.style.visibility = 'visible';
+      console.log('Cast button initialized:', castBtn, 'Visible:', window.getComputedStyle(castBtn).display);
+    } else {
+      console.error('Cast button not found in DOM!');
+    }
+    
     const progressArea = document.getElementById('progress-area');
     const currentProgress = document.getElementById('current-progress');
     const bufferedBar = document.getElementById('buffered-bar');
@@ -3662,14 +3678,26 @@ body::before {
               castBtn.classList.remove('casting'); // Remove casting class when stopped
             } else {
               // Start casting
-              const mediaInfo = new chrome.cast.media.MediaInfo(video.currentSrc, 'video/mp4');
+              if (!video.currentSrc) {
+                alert('No video loaded yet. Please wait for the video to start.');
+                return;
+              }
+              
+              // Detect content type from source URL
+              const contentType = video.currentSrc.includes('.m3u8') 
+                ? 'application/x-mpegurl' 
+                : 'video/mp4';
+              
+              const mediaInfo = new chrome.cast.media.MediaInfo(video.currentSrc, contentType);
               mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
-              mediaInfo.metadata.title = document.title || 'PeeStream Player';
+              mediaInfo.metadata.title = params.get('title') || document.title || 'PeeStream Player';
               mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
               
               const request = new chrome.cast.media.LoadRequest(mediaInfo);
-              request.currentTime = video.currentTime;
+              request.currentTime = video.currentTime || 0;
               request.autoplay = !video.paused;
+              
+              console.log('Casting media:', contentType, video.currentSrc.substring(0, 100));
               
               cast.framework.CastContext.getInstance().requestSession().then(() => {
                 const castSession = cast.framework.CastContext.getInstance().getCurrentSession();
