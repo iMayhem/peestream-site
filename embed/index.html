@@ -3615,6 +3615,7 @@ const hideLoadingOverlay = () => {
             if (session && session.getSessionState() === cast.framework.SessionState.SESSION_STARTED) {
               // Already casting - stop it
               cast.framework.CastContext.getInstance().endCurrentSession(true);
+              castBtn.classList.remove('casting'); // Remove casting class when stopped
             } else {
               // Start casting
               const mediaInfo = new chrome.cast.media.MediaInfo(video.currentSrc, 'video/mp4');
