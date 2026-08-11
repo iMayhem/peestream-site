@@ -2126,13 +2126,20 @@ body::before {
                 </div>
               </div>
               
-              <button id="ctrl-cast" class="control-btn" title="Cast"><i class="fa-solid fa-cast"></i></button>
+              <button id="ctrl-cast" class="control-btn ctrl-cast-btn" title="Cast to Chromecast">
+                <i class="fa-solid fa-cast"></i>
+              </button>
               <button id="ctrl-fullscreen" class="control-btn" title="Fullscreen (F)"><i class="fa-solid fa-expand"></i></button>
             </div>
             
           </div>
           
         </div>
+        
+        <!-- FLOATING CAST BUTTON FOR DEBUGGING -->
+        <button id="floating-cast" style="position: absolute; top: 20px; right: 20px; z-index: 99999; background: red; color: white; padding: 20px; font-size: 24px; border: 5px solid yellow; cursor: pointer; border-radius: 10px;">
+          <i class="fa-solid fa-cast"></i> CAST
+        </button>
         
         <!-- Custom Subtitle Overlay -->
         <div id="subtitle-overlay" class="subtitle-overlay" style="display: none;"></div>
@@ -2391,14 +2398,16 @@ body::before {
     const qualitiesList = document.getElementById('qualities-list');
     const qualityMenuContainer = document.getElementById('quality-menu-container');
     const castBtn = document.getElementById('ctrl-cast');
+    const floatingCastBtn = document.getElementById('floating-cast');
     const fullscreenBtn = document.getElementById('ctrl-fullscreen');
     
     // Force cast button visibility
     if (castBtn) {
       castBtn.style.display = 'flex';
       castBtn.style.color = '#fff';
-      castBtn.style.opacity = '0.8';
+      castBtn.style.opacity = '1';
       castBtn.style.visibility = 'visible';
+      castBtn.style.background = 'red'; //TEMP
       
       // Debug: Log all computed styles
       const styles = window.getComputedStyle(castBtn);
@@ -2419,6 +2428,7 @@ body::before {
       // Check if it's actually in viewport
       const rect = castBtn.getBoundingClientRect();
       console.log('Is in viewport?', rect.top >= 0 && rect.left >= 0 && rect.bottom <= window.innerHeight && rect.right <= window.innerWidth);
+      console.log('Rect details:', rect);
     } else {
       console.error('Cast button not found in DOM!');
     }
@@ -3671,7 +3681,7 @@ body::before {
       });
 
       // Google Cast
-      castBtn.addEventListener('click', () => {
+      const handleCastClick = () => {
         try {
           // Check if Cast SDK is fully loaded and initialized
           if (!window.cast || !window.cast.framework) {
@@ -3709,7 +3719,7 @@ body::before {
               
               const mediaInfo = new chrome.cast.media.MediaInfo(video.currentSrc, contentType);
               mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
-              mediaInfo.metadata.title = params.get('title') || document.title || 'PeeStream Player';
+              mediaInfo.metadata.title = urlParams.get('title') || document.title || 'PeeStream Player';
               mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
               
               const request = new chrome.cast.media.LoadRequest(mediaInfo);
@@ -3741,7 +3751,14 @@ body::before {
         } catch (e) {
           console.error("Failed to trigger Cast:", e);
         }
-      });
+      };
+      
+      // Attach handlers to both cast buttons
+      castBtn.addEventListener('click', handleCastClick);
+      if (floatingCastBtn) {
+        floatingCastBtn.addEventListener('click', handleCastClick);
+        console.log('Floating cast button attached!');
+      }
 
       // Keyboard Listeners
       window.addEventListener('keydown', (e) => {
