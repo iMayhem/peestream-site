@@ -2227,14 +2227,20 @@ body::before {
     window['__onGCastApiAvailable'] = function(isAvailable) {
       if (isAvailable) {
         try {
-          cast.framework.CastContext.getInstance().setOptions({
-            receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-            autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-          });
-          console.log('Google Cast SDK initialized');
+          if (window.cast && window.cast.framework) {
+            cast.framework.CastContext.getInstance().setOptions({
+              receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+              autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+            console.log('Google Cast SDK initialized');
+          } else {
+            console.warn('Cast SDK loaded but framework not available');
+          }
         } catch (e) {
           console.warn('Failed to initialize Cast SDK:', e);
         }
+      } else {
+        console.warn('Google Cast API not available');
       }
     };
 
@@ -2337,6 +2343,12 @@ const hideLoadingOverlay = () => {
       loadingOverlay.classList.add('hidden');
       loadingOverlay.style.display = 'none';
     };
+    
+    const hideErrorOverlay = () => {
+      errorOverlay.classList.add('hidden');
+      errorOverlay.style.display = 'none';
+    };
+    
     // Failure banner removed — never show the "All stream links failed" notice.
     const showStreamFailure = () => {
       hideLoadingOverlay();
@@ -3625,9 +3637,24 @@ const hideLoadingOverlay = () => {
       // Google Cast
       castBtn.addEventListener('click', () => {
         try {
+          // Check if Cast SDK is fully loaded and initialized
+          if (!window.cast || !window.cast.framework) {
+            console.warn('Cast SDK not loaded yet');
+            alert('Chromecast is loading. Please try again in a moment.');
+            return;
+          }
+
           if (window.chrome && window.chrome.cast && window.chrome.cast.isAvailable) {
             // Google Cast SDK available
-            const session = cast.framework.CastContext.getInstance().getCurrentSession();
+            let session;
+            try {
+              session = cast.framework.CastContext.getInstance().getCurrentSession();
+            } catch (e) {
+              console.warn('Cast context not ready:', e);
+              alert('Chromecast is initializing. Please try again in a moment.');
+              return;
+            }
+
             if (session && session.getSessionState() === cast.framework.SessionState.SESSION_STARTED) {
               // Already casting - stop it
               cast.framework.CastContext.getInstance().endCurrentSession(true);
