@@ -2458,23 +2458,42 @@ body::before {
       } catch (e) {}
     }
 
-    function loadActivatedServers() {
-      fetch(`https://providers.peestream.in/api/providers`)
-        .then(r => r.json())
-        .then(data => {
+    let activatedServersPoll = null;
+
+    function applyActivatedServers(data, { autoStart = false } = {}) {
+          const previous = new Map(enabledServers.map(s => [s.id, s]));
           enabledServers = Object.entries(data)
             .filter(([, m]) => m.enabled)
             .sort((a, b) => (a[1].priority || 999) - (b[1].priority || 999))
-            .map(([id, m]) => ({ id, name: m.name || id, status: 'idle', error: '' }));
+            .map(([id, m]) => ({ ...previous.get(id), id, name: m.name || id, status: previous.get(id)?.status || 'idle', error: previous.get(id)?.error || '' }));
           renderOverlayServers();
           updateServerMenuUI();
           if (enabledServers.length === 0) loaderStatus.innerText = 'No activated servers';
-          const top = enabledServers[0];
-          if (top) {
-            clLog('info', `auto-loading top server ${top.name} (${top.id})`);
-            autoScrapes.add(top.id);
-            handleServerClick(top.id, { auto: true });
+          if (activeServerId && !enabledServers.some(s => s.id === activeServerId)) {
+            activeServerId = null;
+            if (resolvedStreams.length) switchServer(resolvedStreams[0].id);
           }
+          if (autoStart) {
+            const top = enabledServers[0];
+            if (top) {
+              clLog('info', `auto-loading top server ${top.name} (${top.id})`);
+              autoScrapes.add(top.id);
+              handleServerClick(top.id, { auto: true });
+            }
+          }
+    }
+
+    function loadActivatedServers() {
+        fetch(`https://hahaevilcraft.site/api/embed-servers`)
+          .then(r => r.json())
+          .then(data => {
+          const serverMap = Array.isArray(data)
+            ? Object.fromEntries(data.map(server => [server.id, server]))
+            : data;
+          applyActivatedServers(serverMap, { autoStart: true });
+          if (!activatedServersPoll) activatedServersPoll = setInterval(() => {
+            fetch('https://providers.peestream.in/api/providers').then(r => r.json()).then(data => applyActivatedServers(data)).catch(() => {});
+          }, 10000);
         })
         .catch(() => {
           loaderStatus.innerText = 'Failed to load server list. Please refresh.';
@@ -2607,9 +2626,14 @@ body::before {
         loadingOverlay.style.display = 'flex';
         autoScrapes.add(next.id);
         handleServerClick(next.id, { auto: true });
-      } else {
+      } else if (targetedScrapes.size === 0) {
         clLog('error', 'all activated servers returned no streams');
         loaderStatus.innerText = 'No streams found on any server.';
+        loadingOverlay.classList.remove('hidden');
+        loadingOverlay.style.display = 'flex';
+      } else {
+        clLog('warn', 'no new server available yet, waiting for in-progress scrapes');
+        loaderStatus.innerText = 'Still searching for streams...';
         loadingOverlay.classList.remove('hidden');
         loadingOverlay.style.display = 'flex';
       }
@@ -2721,8 +2745,12 @@ body::before {
               loadingOverlay.style.display = 'none';
             }, 2500);
             clLog('warn', `server ${sourceId} has no streams, continuing playback`);
+          } else if (targetedScrapes.size === 0) {
+            loaderStatus.innerText = 'No streams found on any server.';
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.style.display = 'flex';
           } else {
-            loaderStatus.innerText = 'No stream found. Trying next...';
+            loaderStatus.innerText = 'Still searching for streams...';
             loadingOverlay.classList.remove('hidden');
             loadingOverlay.style.display = 'flex';
           }
@@ -2743,8 +2771,12 @@ body::before {
             autoAdvanceFrom(sourceId);
             return;
           }
-          if (!activeServerId) {
+          if (!activeServerId && targetedScrapes.size === 0) {
             loaderStatus.innerText = 'Connection lost. Please refresh.';
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.style.display = 'flex';
+          } else if (!activeServerId) {
+            loaderStatus.innerText = 'Still searching for streams...';
             loadingOverlay.classList.remove('hidden');
             loadingOverlay.style.display = 'flex';
           } else {
