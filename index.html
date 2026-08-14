@@ -216,23 +216,6 @@
       data-cfasync="false"
       src="//dc9xwpjprguup.cloudfront.net/?pwxcd=1454678"
     ></script>
-    <script>
-      // Re-fire AdMaven pop when the SPA navigates to the player page (/media/*)
-      (function () {
-        var lastPath = window.location.pathname;
-        setInterval(function () {
-          var p = window.location.pathname;
-          if (p === lastPath) return;
-          lastPath = p;
-          if (/^\/media\//.test(p)) {
-            var s = document.createElement("script");
-            s.setAttribute("data-cfasync", "false");
-            s.src = "//dc9xwpjprguup.cloudfront.net/?pwxcd=1454678";
-            document.head.appendChild(s);
-          }
-        }, 300);
-      })();
-    </script>
 
     <!-- prevent darkreader extension from messing with our already dark site -->
     <meta name="darkreader-lock" />
